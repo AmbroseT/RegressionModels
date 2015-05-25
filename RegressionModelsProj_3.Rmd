@@ -1,0 +1,316 @@
+---
+title: 'Motor Trend Project: MPG Analysis'
+author: "Ambrosio Q. Tria"
+geometry: margin=0.6in
+output:
+  pdf_document:
+    keep_tex: yes
+    toc: yes
+  html_document:
+    highlight: haddock
+    keep_md: yes
+    theme: spacelab
+    toc: yes
+fontsize: 10pt
+---
+***
+
+```{r setoptions, echo=FALSE}
+## global configs
+library(knitr)
+opts_chunk$set(fig.height=3, fig.width=3, echo=FALSE)
+```
+
+```{r}
+## load all environment requirements
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(xtable)
+data(mtcars)
+
+## set report variables here
+axisSize <- 0.8
+point1 <- 3
+point2 <- 2
+```
+
+\newpage
+
+## Preface
+
+This is the project for the Coursera/ Johns Hopkins Bloomberg School of Public Health course, Regression Models. It assumes working for Motor Trend, using the built in data set ```mtcars``` to answer hypothetical questions with analysis and regression modeling. PDF Report layout comprises of Table of Contents (1 page), Main Body (2 pages), and Appendix (5 pages).
+
+## Executive Summary {#eo}
+
+In order to provide empirical evidence for Motor Trend, this report presents the analysis of miles per gallon (MPG) on a select collection of cars. The outcome variable representing MPG will be analyzed against other variables found in the dataset ```mtcars``` using exploratory data analysis and regression modeling. The analysis will address two areas of concern:
+
+1. Is an automatic or manual transmission better for MPG
+2. Quantifying the MPG difference between automatic and manual transmissions
+
+The analysis and regression modeling shows that manual transmission is better for MPG when compared to automatic transmission, gven the interdependence on weight, displacement and number of cylinders.
+
+Supporting figures for the analysis can be found in the [Appendix](#appendix) section of this report. For convenience throughout the main body of the report, links have been created for easier navigation to the supporting figures in the appendix.
+
+## Exploratory Data Analysis {#eda}
+
+Looking at the structure {[figure 1](#fig1)} of the dataset ```mtcars```, we can see that it is comprised of 32 observations on 11 variables, where all variables are numeric. Of the variables listed and their descriptions {[figure 2](#fig2)}, the variable ```am``` describes the car's transmission type - boolean values of [`r unique(mtcars$am)`]; where 0 is for automatic transmission, and 1 is for manual transmission per the description {[figure 2](#fig2)} of ```am```.
+
+We will copy the original data into a new data frame named ```mtcars2``` where we will assign names to the numerical values of ```am``` in the observations. This will assist with readability in the plots.
+
+```{r}
+## create a new data frame and clean up a couple of names
+mtcars2 <- mtcars
+mtcars2$am[mtcars2$am==0] <- "Automatic"
+mtcars2$am[mtcars2$am==1] <- "Manual"
+
+```
+
+## Regression Modeling {#rm}
+
+```{r}
+## fitting slr and its residual, MPG ~ am
+fit <- lm(mpg ~ am, data = mtcars)
+e <- resid(fit)
+```
+
+### SLR modeling
+
+Let's take a quick look at fitting a regression model on ```mpg``` as the outcome and the transmission type (```am```) as the regressor.  We will use a simple linear regression (SLR) model. Its plot {[figure 5](#fig5)}  shows that manual transmission vehicles have better ```mpg``` than automatic vehicles.  This can be misleading, because as we saw in our exploratory data analysis, there are other variables in the dataset that can potentially impact ```mpg```, which is not accounted for in this simple plot. 
+
+Let's try to validate this by taking its residual to confirm if the SLR model is a good fit. We see that its plot does not show the scatter we expect from a residual. In fact, it is exactly as the SLR plot. It is unquestionable that the SLR model is not a good fit for ```mpg``` vs Transmission Type. And as expected, it does not account for data between the two Transmission Type points - it simply cannot, given only 2 values for the x axis.  You can see these results in {[figure 5](#fig5)}. 
+
+```{r}
+## fitting slr and its residual, MPG ~ hp
+hpfit <- lm(mtcars$mpg~mtcars$hp)
+hpe <- resid(hpfit)
+```
+
+Finally, let's confirm if other variables in the data set impact ```mpg```. Taking a look at the SLR of ```mpg``` versus horsepower (```hp```), you can see a linear decrease for ```mpg``` as horsepower increases for both automatic and manual transmissions, opposite than what we saw in the SLR for ```mpg``` versus Transmission Type. Its residual plot is more reasonable than what we saw before; however, there seems to be a secondary linear pattern showing for both automatic and manual transmission, suggesting a relationship with one or more other variables in the dataset. You can see this in {[figure 6](#fig6)}. 
+
+From these results, we've confirmed that other variables in the data set do have an impact on ```mpg```, as well as on each other. Therefore, we will need to apply a different regression model to the data set. Before we do, we will assess which variables to include and which to exclude.
+
+```{r}
+##
+fit2 <- lm(mpg ~ ., data = mtcars)
+```
+
+```{r}
+fit3 <- lm(mpg ~ am + wt + disp + cyl, data = mtcars)
+```
+
+### Multivariate regression modeling
+
+We will use a multivariate linear regression model on the dataset. The multivariate regression summary of ```mpg``` vs all the other variables {[figure 7](#fig7)} gives us the coefficients to interpret the impact of each variable in the dataset on ```mpg```, as they are influenced by every other variable held at that particular time. 
+
+From this multivariate model, and a listing of the different correlations with mpg, we will select a subset of variables that have the most impact on ```mpg```, and create a focused multivariate model. So, from the summary {[figure 7](#fig7)}, the variable with the most significance is ```wt``` (weight), although its significance is not a strong significance as shown by its p-value.  The coefficients tell us that for every unit increase of ```wt```, mpg decreases by `r round(coef(summary(fit2))[6,1],1)`. The transmission type ```am``` is the next largest change in ```mpg```, in the positive direction, with a coefficient of `r round(coef(summary(fit2))[9,1],1)`.  Interestingly enough, the ```am``` p-value is not great.
+
+On the other hand, the table of ```mpg``` correlations with each variable {[figure 8](#fig8)} shows that the strongest correlations with ```mpg``` are with weight (```wt```), displacement (```disp```), and cylinder (```cyl```).
+
+Based on coefficient significance and correlation strength, we will create a multivariate model of ```mpg``` vs ```am``` + ```wt``` + ```disp``` + ```cyl``` as the model to answer our questions.  Let's confirm this final model. 
+
+```{r}
+##
+fit4 <- lm(mpg ~ am + wt + wt*am, mtcars)
+
+## anova setup
+fit5 <- update(fit, mpg ~ am + wt)
+fit6 <- update(fit, mpg ~ am + wt + disp + cyl)
+fit7 <- update(fit, mpg ~ wt + disp + cyl + qsec)
+fit8 <- update(fit, mpg ~ wt + disp + cyl + hp)
+```
+
+We take the first SLR model {[figure 5](#fig5)} that we created and use that to build subsequent updated models and test them via ANOVA. The result of our final model choice of ```mpg ~ am + wt + disp + cyl``` {[figure 11](#anova1)} is a good fit, where the p-values of ```am + wt``` and ```am + wt + disp + cyl``` are significant. To verify that other variables are not impacting on our selected model, we sample two other variables and fit models adding ```qsec``` {[figure 12](#anova2)}and then adding ```hp``` {[figure 13](#anova3)} (remember, we looked at ```hp``` in an SLR).  The ANOVA models  show that these additions are not significant and we can leave out ```qsec``` and ```hp```.
+
+We have our final regression summary {[figure 9](#fig9)} and visualization plot {[figure 10](#fig10)} of our selected model.
+
+## Conclusion {#conclusion}
+
+We should be clear that the dataset ```mtcars``` is very limited with number of observations and randomness, and is aged.  It is a data source from 1974.
+
+So, from the multivariate regression model we selected, we can see that transmission type is very dependent on the other variables, the other vehicular attributes when analyzing miles per gallon (```mpg```). Weight (```wt```) has a significant and strong relationship with transmission type (```am```). Both ```am``` and ```wt``` are influenced by displacement (```disp```) and number of cylinders (```cyl```).  Looking at the plot of these relationships over transmission types {[figure 10](#fig10)}, we can see that manual transmissions have an initial advantage over automatic transmissions for ```mpg```, and that the influencial relationships with the change in other vehicular attributes show an increase in ```mpg``` for manual transmissions.  Automatic transmissions slightly affect ```mpg``` positively as the other attributes are changed. Overall, manual transmissions is a better design for ```mpg```. Improvements in the other vehicular attributes do have positive influence for ```mpg``` in both transmission types.
+
+Note: This report was authored in R Markdown and compiled to pdf using pdflatex (via knitr)^[To view the raw source and for reproducibility, please visit my Github [repository](https://github.com/AmbroseT/RegressionModels)]. Figure 3 and figure 4 were omitted due to space constraints.
+
+\newpage
+
+# Appendix {#appendix}
+
+All supporting figures can be found in this appendix. For convenience, links have been created for easier navigation back to the main body of the report. Note that captions for the figures have been left out because of the linked figure titles.
+
+## Figure 1: Structure of the dataset MTCARS {#fig1}
+
+```{r}
+##
+str(mtcars)
+```
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+## Figure 2: Dataset Variable Description {#fig2}
+
+```{r}
+##
+myfile <- read.table("mtcars.txt", sep =",", stringsAsFactors=FALSE, header=TRUE)
+myfile
+```
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+## Figure 5: SLR of MPG vs Transmission Type, and its Residual Plot {#fig5}
+
+```{r fig.width=10, fig.height=4}
+## use mtcars for original am values (was changed to contextual text in mtcars2)
+p1 <- ggplot(mtcars, aes(x = am, y = mpg)) + theme_bw()
+p1 <- p1 + geom_point(size = 3, color = "black")
+p1 <- p1 + geom_point(size = 2, color = "blue")
+p1 <- p1 + geom_smooth(method="lm", color="black")
+p1 <- p1 + xlab("Transmission Type") + ylab("MPG")
+p1 <- p1 + theme(axis.text.x = element_text(size=rel(axisSize)),
+                 axis.text.y = element_text(size=rel(axisSize)),
+                 axis.title.x = element_text(vjust=-0.1),
+                 axis.title.y = element_text(vjust=1))  ## using vjust because context of text is rotated -90deg
+
+# residuals
+p3 <- ggplot(mtcars, aes(x=am, y=e)) + theme_bw()
+p3 <- p3 + geom_hline(yintercept=0)
+p3 <- p3 + geom_point(size=3, color="black")
+p3 <- p3 + geom_point(size=2,color="red")
+p3 <- p3 + xlab("Transmission Type") + ylab("Residual of MPG vs Transmission Type")
+p3 <- p3 + annotate("text", x=0.35, y=1, label = "Reference line", size=4)
+p3 <- p3 + theme(axis.text.x = element_text(size=rel(axisSize)),
+                 axis.text.y = element_text(size=rel(axisSize)),
+                 axis.title.x = element_text(vjust=-0.1),
+                 axis.title.y = element_text(vjust=1))
+
+grid.arrange(p1,p3, ncol=2)
+
+```
+
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+## Figure 6: SLR of MPG vs Horsepower for Transmission Types, and its Residual Plot {#fig6}
+
+```{r fig.width=10, fig.height=4}
+## slr mpg vs hp
+p2 <- ggplot(mtcars2, aes(x = hp, y = mpg)) + theme_bw()
+p2 <- p2 + geom_point(size = 3, color ="black")
+p2 <- p2 + geom_point(size = 2, color ="blue")
+p2 <- p2 + geom_smooth(method="lm", color = "black")
+p2 <- p2 + facet_grid(am ~ .)
+p2 <- p2 + xlab("Horsepower") + ylab("MPG")
+p2 <- p2 + theme(axis.text.x = element_text(size=rel(axisSize)),
+                 axis.text.y = element_text(size=rel(axisSize)),
+                 axis.title.x = element_text(vjust=-0.1),
+                 axis.title.y = element_text(vjust=1))
+
+## residual
+p4 <- ggplot(mtcars2, aes(x=hp, y=hpe)) + theme_bw()
+p4 <- p4 + geom_hline(yintercept=0)
+p4 <- p4 + geom_point(size=point1, color="black")
+p4 <- p4 + geom_point(size=point2,color="red")
+p4 <- p4 + xlab("Horsepower") + ylab("Residual of MPG vs Horsepower")
+p4 <- p4 + facet_grid(am ~ .)
+p4 <- p4 + theme(axis.text.x = element_text(size=rel(axisSize)),
+                 axis.text.y = element_text(size=rel(axisSize)),
+                 axis.title.x = element_text(vjust=-0.1),
+                 axis.title.y = element_text(vjust=1))
+
+grid.arrange(p2, p4, ncol=2)
+```
+
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+## Figure 7: Regression Summary of MPG vs all other variables {#fig7}
+
+```{r}
+##
+summary(fit2)
+```
+
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+## Figure 8: Correlations Table of MPG and Each Variable in the dataset {#fig8}
+
+```{r results='asis'}
+cors <- NULL
+varnames <- names(mtcars)
+varnames <- varnames[-1]
+for(i in 2:length(mtcars)){
+  cors <- c(cors, round(cor(mtcars$mpg,mtcars[,i]),2))  
+} 
+
+tcors <- cbind("1st Variable"="mpg", "2nd Variable"=varnames, Correlation=cors)
+tcors <- as.data.frame(tcors)
+print(xtable(tcors, align = "rrrr"), floating=F, comment=F)
+```
+
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+## Figure 9: Regression Summary of MPG vs Select Variables {#fig9}
+
+```{r}
+##
+summary(fit3)
+```
+
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+## Figure 10: Visualization of Regression Summary of MPG {#fig10}
+
+```{r fig.width=10, fig.height=4, warning=FALSE, message=FALSE}
+##
+attach(mtcars2)
+all <- cyl + disp + hp + drat + wt + qsec + vs + gear + carb
+focus <- wt + disp + cyl
+
+p5 <- ggplot(mtcars2, aes(x = all, y = mpg)) + theme_bw()
+p5 <- p5 + geom_point(size = point1, color ="black")
+p5 <- p5 + geom_point(size = point2, color ="blue")
+p5 <- p5 + geom_smooth(method="lm", color = "black")
+p5 <- p5 + facet_grid(am~.)
+p5 <- p5 + xlab("Summation of All Other Variables") + ylab("MPG")
+p5 <- p5 + theme(axis.text.x = element_text(size=rel(axisSize)),
+                 axis.text.y = element_text(size=rel(axisSize)),
+                 axis.title.x = element_text(vjust=-0.1),
+                 axis.title.y = element_text(vjust=1))
+
+p6 <- ggplot(mtcars2, aes(x = focus, y = mpg)) + theme_bw()
+p6 <- p6 + geom_point(size = point1, color ="black")
+p6 <- p6 + geom_point(size = point2, color ="blue")
+p6 <- p6 + geom_smooth(method="lm", color = "black")
+p6 <- p6 + facet_grid(am~.)
+p6 <- p6 + xlab("Summation of Weight + Displacement + Cylinders") + ylab("MPG")
+p6 <- p6 + theme(axis.text.x = element_text(size=rel(axisSize)),
+                 axis.text.y = element_text(size=rel(axisSize)),
+                 axis.title.x = element_text(vjust=-0.1),
+                 axis.title.y = element_text(vjust=1))
+
+grid.arrange(p5, p6, ncol=2)
+```
+
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+## Figure 11: ANOVA Table 1, Our Selected Model Test {#anova1}
+
+```{r}
+anova(fit, fit5, fit6)
+```
+
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+## Figure 12: ANOVA Table 2, Adding QSEC {#anova2}
+
+```{r}
+anova(fit, fit5, fit6, fit7)
+```
+
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+## Figure 13: ANOVA Table 3, Adding HP {#anova3}
+
+```{r}
+anova(fit, fit5, fit6, fit7, fit8)
+```
+
+[Executive Summary](#eo) | [Exploratory Data Analysis](#eda) | [Regression Modeling](#rm) | [Conclusion](#conclusion)
+
+
